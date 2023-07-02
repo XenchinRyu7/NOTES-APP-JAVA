@@ -2,8 +2,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Scanner;
+import java.util.Calendar;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
 abstract class Notes {
     protected String title, body;
@@ -66,9 +67,9 @@ abstract class Notes {
 }
 
 interface NotesIO {
-    void saveNote();
-    void listNote();
-    void readNote();
+    void saveNote() throws IOException;
+    void listNote() throws IOException;
+    void readNote() throws IOException;
 }
 
 class NotesMain extends Notes implements NotesIO {
@@ -78,13 +79,21 @@ class NotesMain extends Notes implements NotesIO {
 
         saveNotes.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                saveNote();
+                try {
+                    saveNote();
+                } catch (FileNotFoundException e1) {
+                    e1.printStackTrace();
+                }
             }
         });
 
         listNotes.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                listNote();
+                try {
+                    listNote();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
             }
         });
 
@@ -103,29 +112,48 @@ class NotesMain extends Notes implements NotesIO {
         readNotes.setVisible(false);
     }
 
-    public void saveNote() {
+    @Override
+    public void saveNote() throws FileNotFoundException {
+
         String title = titleText.getText();
         String body = areaBody.getText();
+        Calendar calendar = Calendar.getInstance();
+        Date currentDate = calendar.getTime();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+        String dateString = dateFormat.format(currentDate);
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
+        String timeString = timeFormat.format(currentDate);
+
+        FileOutputStream outFileTitle =  new FileOutputStream(title + ".txt");
 
         try {
-            FileWriter writer = new FileWriter(title + ".txt");
-            writer.write(body);
-            writer.close();
-
-            FileWriter dataWriter = new FileWriter("datanotes.txt", true);
-            dataWriter.write(title + "\n");
-            dataWriter.close();
+            DataOutputStream outputStream = new DataOutputStream(outFileTitle);
+            outputStream.writeUTF("Tanggal dibuat : " + dateString + "\n");
+            outputStream.writeUTF("Waktu dibuat : " + timeString + "\n");
+            outputStream.writeUTF("\n" + body);
+            outputStream.close();
 
             JOptionPane.showMessageDialog(null, "Note saved successfully.");
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+
+        FileOutputStream outFileData =  new FileOutputStream("datanotes.txt", true);
+        try {
+            DataOutputStream outputStream = new DataOutputStream(outFileData);
+            outputStream.writeUTF(title);
+            outputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    public void listNote() {
+    @Override
+    public void listNote() throws IOException {
         ListNotes listForm = new ListNotes("List Notes", true);
     }
 
+    @Override
     public void readNote() {
         // tidak dipakai
     }
@@ -135,18 +163,26 @@ class ListNotes extends Notes implements NotesIO {
 
     private JComboBox<String> comboBox;
 
-    public ListNotes(String windowName, boolean visible) {
+    public ListNotes(String windowName, boolean visible) throws IOException {
         super(windowName, visible);
 
         comboBox = new JComboBox<>();
         comboBox.setBounds(50, 50, 300, 30);
         form.add(comboBox);
 
-        loadComboBox();
+        try {
+            loadComboBox();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
 
         readNotes.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                readNote();
+                try {
+                    readNote();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
             }
         });
 
@@ -162,49 +198,49 @@ class ListNotes extends Notes implements NotesIO {
         titleLabel.setVisible(false);
     }
 
-    private void loadComboBox() {
+    private void loadComboBox() throws IOException {
+        FileInputStream fileData  = new FileInputStream("datanotes.txt");
         try {
-            File file = new File("datanotes.txt");
-            Scanner scanner = new Scanner(file);
-            while (scanner.hasNextLine()) {
-                String title = scanner.nextLine();
-                comboBox.addItem(title);
+            DataInputStream dataStream = new DataInputStream(fileData);
+            while(dataStream.available() > 0) {
+                String listNotes = dataStream.readUTF();
+                comboBox.addItem(listNotes);
             }
-            scanner.close();
+            dataStream.close();
         } catch (FileNotFoundException ex) {
             ex.printStackTrace();
         }
     }
 
-    public void readNote() {
+    @Override
+    public void readNote() throws IOException {
         String selectedTitle = (String) comboBox.getSelectedItem();
+        StringBuilder sb = new StringBuilder();
 
         try {
-            File file = new File(selectedTitle + ".txt");
-            Scanner scanner = new Scanner(file);
-            ArrayList<String> bodies = new ArrayList<>();
+            FileInputStream inFile = new FileInputStream(selectedTitle + ".txt");
+            DataInputStream inputStream = new DataInputStream(inFile);
 
-            while (scanner.hasNextLine()) {
-                String body = scanner.nextLine();
-                bodies.add(body);
-            }
-            scanner.close();
+            while(inputStream.available() > 0) {
+                String bodies = inputStream.readUTF();
 
-            if (!bodies.isEmpty()) {
-                String selectedBody = bodies.get(0);
-                areaBody.setText(selectedBody);
-            } else {
-                JOptionPane.showMessageDialog(null, "Note not found.");
+                sb.append(bodies);
+                areaBody.setText(sb.toString());
             }
+            inputStream.close();
         } catch (FileNotFoundException ex) {
+            ex.printStackTrace();
+        } catch (IOException ex) {
             ex.printStackTrace();
         }
     }
 
+    @Override
     public void saveNote() {
         // tidak dipakai
     }
 
+    @Override
     public void listNote() {
         // tidak dipakai
     }
